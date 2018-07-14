@@ -3,17 +3,12 @@ const axios = require('axios')
 const MongoClient = require('mongodb').MongoClient
 const querystring = require('querystring')
 const discordClient = new Discord.Client()
-const token = require('./token').token
+const { token, url } = require('./secret')
 const grammarCheckAPI = 'http://localhost:8081/v2/check'
 
-const url = 'mongodb://localhost:27017'
+
 const options = {
   useNewUrlParser: true
-}
-
-const testGuild = {
-  language: 'en-us',
-  disabledRules: 'UPPERCASE_SENTENCE_START'
 }
 
 let db, collection
@@ -37,54 +32,76 @@ MongoClient.connect(url, options, (err, dbClient) => {
     let guild = await collection.findOne({  server_id: { $eq: message.guild.id }})
 
     if(words[0] === '$$configure') {
-      if(guild === null) {
-        createServer(words, guild)
+      if(message.member.hasPermission('ADMINISTRATOR')) {
+        if(guild === null) {
+          message.reply(createServer(message, collection))
+        } else {
+          if(words.length === 3) {
+            updateServer(words, guild, collection)
+            message.reply(`your server has been updated with the frequency of ${words[1]} and a language of ${words[2]}.`)
+          } else if(words[1] === 'help') {
+            message.reply(`run command $$configure <frequency> <language>.`)
+          } else {
+            message.reply(`frequency: ${guild.frequency}, language: ${guild.language}`)
+          }
+        }
       } else {
-        message.reply(configureServer(words, guild))
+        message.reply('you must have administrator privilege to configure this bot')
       }
-
     // Check if the guild has been configured
     } else if (guild === null) {
       console.log(message.guild.id)
       message.reply(
         `your server has not been configured yet.
-        \nrun command $$configure <frequency> <language>`
+        \nrun command $$configure <frequency> <language>.`
       )
     } else {
-      message.reply(checkGrammer(message, guild))
+      console.log(guild.frequency)
+      if(Math.floor(Math.random() * 100) <= guild.frequency) {
+        message.reply(checkGrammar(message, guild))
+      } else {
+        console.log('you lucked out')
+      }
     }
   })
   
   discordClient.login(token);
 })
 
-const updateServer = (words, guild) => {
-  if(words.length === 3) {
-    switch(words[0]) {
-      case '$$configure':
-        return `your server has been configured with ${guild.frequency} ${guild.language}`
-      default:
-        return `the command ${words[0]} is not recognized \nrun the command $$configure to set up this bot`
-    }
-  } else if(words[1] === 'help') {
-    return `run the command $$configure <frequency> <language>`
-  } else { 
-    return `your current frequency is set to ${guild.frequency} and the language to ${guild.language}`
+const createServer = async (message, collection) => {
+  let words = message.content.split(' ')
+  
+  if(words.length != 3) {
+    return await `run command $$configure <frequency> <language>.`
+  } else {
+    await collection.insertOne({server_id: message.guild.id, frequency: words[1], language: words[2]})
+
+    return await `server configured with a frequency of ${words[1]} and a language ${words[2]}.`
   }
 }
 
-const checkGrammer = (message, guild) => {
-  if(Math.random() <= guild.frequency) {
-    axios.post(grammarCheckAPI, querystring.stringify({
-      'text': message.content,
-      'language': guild.language,
-      'disabledRules': guild.disabledRules
-    }))
-    .then(response => {
-      if (response.data.matches.length != 0) {
-        message.reply(response.data.matches[0].message);
-      }
-    })
-    .catch(error => console.log(error))
-  }
+const updateServer = (words, guild, collection) => { 
+  collection.update(
+    {
+      server_id: guild.server_id
+    }, {
+      server_id: guild.server_id, 
+      frequency: words[1], 
+      language: words[2]
+    }
+  )
+}
+
+const checkGrammar = (message, guild) => {
+  axios.post(grammarCheckAPI, querystring.stringify({
+    'text': message.content,
+    'language': guild.language,
+    'disabledRules': guild.disabledRules
+  }))
+  .then(response => {
+    if (response.data.matches.length != 0) {
+      message.reply(response.data.matches[0].message);
+    }
+  })
+  .catch(error => console.log(error))
 }
