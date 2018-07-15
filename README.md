@@ -1,6 +1,6 @@
 # Grammar Nazi Discord Bot
 
-This bot was built for the sole purpose of trolling people in my server. You can
+This bot was built for the sole purpose of trolling people in my server. You can invite
 this bot to your server [here](https://discordapp.com/oauth2/authorize?client_id=439110082106753024&scope=bot)
 
 To configure this bot you run the command
