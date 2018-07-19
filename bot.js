@@ -4,7 +4,7 @@ const MongoClient = require('mongodb').MongoClient
 const querystring = require('querystring')
 const discordClient = new Discord.Client()
 const { token, url } = require('./secret')
-const grammarCheckAPI = 'http://localhost:8081/v2/check'
+const grammarCheckAPI = 'https://languagetool.org/api/v2/check' 
 
 
 const options = {
@@ -56,9 +56,8 @@ MongoClient.connect(url, options, (err, dbClient) => {
         \nrun command $$configure <frequency> <language>.`
       )
     } else {
-      console.log(guild.frequency)
       if(Math.floor(Math.random() * 100) <= guild.frequency) {
-        message.reply(checkGrammar(message, guild))
+        checkGrammar(message, guild)
       } else {
         console.log('you lucked out')
       }
@@ -93,14 +92,20 @@ const updateServer = (words, guild, collection) => {
 }
 
 const checkGrammar = (message, guild) => {
+  let apiResponse, count = 1
+
   axios.post(grammarCheckAPI, querystring.stringify({
     'text': message.content,
     'language': guild.language,
     'disabledRules': guild.disabledRules
   }))
-  .then(response => {
+  .then(async response => {
     if (response.data.matches.length != 0) {
-      message.reply(response.data.matches[0].message);
+       apiResponse = await response.data.matches.map(match => {
+         return `${count++}. ${match.message}.\n`
+       })
+
+       await message.reply(apiResponse)
     }
   })
   .catch(error => console.log(error))
